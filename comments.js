@@ -1,76 +1,52 @@
 // create web server
-var express = require('express');
-var app = express();
-var bodyParser = require('body-parser');
-var path = require('path');
-// create database
-var mongoose = require('mongoose');
-var db = mongoose.connect('mongodb://localhost/comments');
+// create route to handle comments
+// use fs to read and write comments to a file
+// use querystring to parse the form data
+// use template literals to create html for the comments
+// use the url module to parse the querystring
+// use the http module to create a web server
+// use the fs module to read and write files
+// use the querystring module to parse form data
+// use the url module to parse the querystring
 
-// create model
-var Comment = require('./commentModel');
+const http = require("http");
+const fs = require("fs");
+const url = require("url");
+const querystring = require("querystring");
 
-// create router
-var router = express.Router();
-// use middleware to parse the request body
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-// use middleware to serve static files
-app.use(express.static(path.join(__dirname, 'public')));
-
-// create route
-router.route('/comments')
-    .post(function(req, res) {
-        var comment = new Comment(req.body);
-        comment.save();
-        res.status(201).send(comment);
-    })
-    .get(function(req, res) {
-        Comment.find(function(err, comments) {
-            if (err) {
-                res.status(500).send(err);
-            } else {
-                res.json(comments);
-            }
+http
+  .createServer((req, res) => {
+    const q = url.parse(req.url, true);
+    if (q.pathname === "/comments" && req.method === "GET") {
+      res.writeHead(200, { "Content-Type": "text/html" });
+      fs.readFile("comments.html", (err, data) => {
+        if (err) return console.error(err);
+        res.end(data);
+      });
+    } else if (q.pathname === "/comments" && req.method === "POST") {
+      let body = "";
+      req.on("data", (data) => {
+        body += data;
+      });
+      req.on("end", () => {
+        const post = querystring.parse(body);
+        res.writeHead(200, { "Content-Type": "text/html" });
+        fs.readFile("comments.html", (err, data) => {
+          if (err) return console.error(err);
+          const comment = `<p>${post.comment}</p>`;
+          const html = `${data
+            .toString()
+            .replace('<div id="comments"></div>', comment)}\n`;
+          fs.writeFile("comments.html", html, (err) => {
+            if (err) return console.error(err);
+          });
+          res.end(html);
         });
-    });
-
-router.route('/comments/:commentId')
-    .get(function(req, res) {
-        Comment.findById(req.params.commentId, function(err, comment) {
-            if (err) {
-                res.status(500).send(err);
-            } else {
-                res.json(comment);
-            }
-        });
-    })
-    .put(function(req, res) {
-        Comment.findById(req.params.commentId, function(err, comment) {
-            if (err) {
-                res.status(500).send(err);
-            } else {
-                comment.author = req.body.author;
-                comment.text = req.body.text;
-                comment.save();
-                res.json(comment);
-            }
-        });
-    })
-    .delete(function(req, res) {
-        Comment.findByIdAndRemove(req.params.commentId, function(err, comment) {
-            if (err) {
-                res.status(500).send(err);
-            } else {
-                res.status(204).send('removed');
-            }
-        });
-    });
-
-// register route
-app.use('/api', router);
-
-// start server
-app.listen(3000, function() {
-    console.log('server is running on port 3000');
-});
+      });
+    } else {
+      res.writeHead(404, { "Content-Type": "text/html" });
+      res.end("404 Not Found");
+    }
+  })
+  .listen(8080);
+console.log("Server running at http://localhost:8080/");
